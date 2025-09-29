@@ -306,6 +306,7 @@ TYPED_TEST(firpm_scaling_test, bandstop100)
     std::vector<T> w = {1.0, 1.0, 1.0};
 
     std::size_t degree = 100;
+#ifdef HAVE_MPFR
     pm::pmoutput_t<T> output1;
     if(!std::is_same<T, mpfr::mpreal>::value) {
         std::cout << "START Parks-McClellan with uniform initialization\n";
@@ -315,6 +316,7 @@ TYPED_TEST(firpm_scaling_test, bandstop100)
         std::cout << "FINISH Parks-McClellan with uniform initialization\n";
         ASSERT_LT(output1.q, 1e-2);
     }
+#endif
 
     std::cout << "START Parks-McClellan with reference scaling\n";
     auto output2 = firpmRS<T>(degree * 2u, f, a, w);
@@ -332,11 +334,13 @@ TYPED_TEST(firpm_scaling_test, bandstop100)
     ASSERT_LT(output3.q, 1e-2);
     ASSERT_LE(pm::pmmath::fabs((output2.delta-output3.delta)/output2.delta), 2e-2);
 
+#ifdef HAVE_MPFR
     if(!std::is_same<T, mpfr::mpreal>::value) {
         std::cout << "Iteration count reduction for final filter  RS: " << 1.0 - (double)output2.iter / output1.iter << std::endl;
         std::cout << "Iteration count reduction for final filter AFP: " << 1.0 - (double)output3.iter / output1.iter << std::endl;
         ASSERT_LE(pm::pmmath::fabs((output1.delta-output2.delta)/output1.delta), 2e-2);
     }
+#endif
 
 }
 
@@ -459,6 +463,7 @@ TYPED_TEST(firpm_lebesgue_test, lowpass1000)
     std::cout << "FINISH Parks-McClellan with reference scaling\n";
     ASSERT_LT(output2.q, 1e-2);
 
+#ifdef HAVE_MPFR
     pm::pmoutput_t<T> output3;
     // takes way too long with the mpfr version of the code to generate
     // the AFP initialization (AFP is meant to be used in conjunction with
@@ -473,6 +478,7 @@ TYPED_TEST(firpm_lebesgue_test, lowpass1000)
         ASSERT_LT(output3.q, 1e-2);
         ASSERT_LE(pm::pmmath::fabs((output2.delta-output3.delta)/output2.delta), 2e-2);
     }
+#endif
 }
 
 TYPED_TEST(firpm_lebesgue_test, bandpass60)
@@ -758,6 +764,7 @@ TYPED_TEST(firpm_lebesgue_test, multiband600)
     std::cout << "FINISH Parks-McClellan with reference scaling\n";
     ASSERT_LT(output2.q, 1e-5);
 
+#ifdef HAVE_MPFR
     pm::pmoutput_t<T> output3;
     // idem to lowpass1000
     if(!std::is_same<T, mpfr::mpreal>::value) {
@@ -769,6 +776,7 @@ TYPED_TEST(firpm_lebesgue_test, multiband600)
         ASSERT_LT(output3.q, 1e-5);
         ASSERT_LE(pm::pmmath::fabs((output2.delta-output3.delta)/output2.delta), 2e-2);
     }
+#endif
 }
 
 TYPED_TEST(firpm_cic_test, cic119) {
