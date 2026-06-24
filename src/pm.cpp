@@ -770,9 +770,7 @@ namespace pm {
 
         try {
             parseSpecification(output.status, f, a, w);
-            std::vector<T> h;
             std::vector<band_t<T>> fbands;
-            std::vector<band_t<T>> cbands;
             std::vector<std::vector<std::size_t>> bIdx;
 
             std::size_t nbands{0u};
@@ -804,86 +802,106 @@ namespace pm {
                     ++n;
                 }
             }
-            std::size_t deg = n / 2;
-            if(n % 2 == 0) {            // type I filter
-                for(std::size_t i{0u}; i < fbands.size(); ++i) {
-                    fbands[i].part.push_back(T(pmmath::const_pi<T>() * f[2u*bIdx[i][0u]]));
-                    for(std::size_t j{0u}; j < bIdx[i].size(); ++j) {
-                        fbands[i].part.push_back(T(pmmath::const_pi<T>() * f[2u*bIdx[i][j]+1u]));
-                    }
+            for(std::size_t i{0u}; i < fbands.size(); ++i) {
+                fbands[i].part.push_back(T(pmmath::const_pi<T>() * f[2u*bIdx[i][0u]]));
+                for(std::size_t j{0u}; j < bIdx[i].size(); ++j) {
+                    fbands[i].part.push_back(T(pmmath::const_pi<T>() * f[2u*bIdx[i][j]+1u]));
                 }
-                for(std::size_t i{0u}; i < fbands.size(); ++i) {
-                    fbands[i].start = fbands[i].part[0u];
-                    fbands[i].stop  = fbands[i].part[fbands[i].part.size()-1u];
-                    fbands[i].space = space_t::FREQ;
+            }
+            for(std::size_t i{0u}; i < fbands.size(); ++i) {
+                fbands[i].start = fbands[i].part[0u];
+                fbands[i].stop  = fbands[i].part[fbands[i].part.size()-1u];
+                fbands[i].space = space_t::FREQ;
 
-                    fbands[i].amplitude = [i, &a, &bIdx, &fbands](space_t space, T x) -> T {
-                        if(space == space_t::CHEBY)
-                            x = pmmath::acos(x);
-                        for(std::size_t j{0u}; j < bIdx[i].size(); ++j) {
-                            if(fbands[i].part[j]*(1.0-1e-12) <= x && 
-                            x <= fbands[i].part[j+1u]*(1.0+1e-12)) {
-                                if(a[2u*bIdx[i][j]] != a[2u*bIdx[i][j]+1u]) {
-                                    return ((x-fbands[i].part[j]) * a[2u*bIdx[i][j]+1u] -
-                                            (x-fbands[i].part[j+1u]) * a[2u*bIdx[i][j]]) /
-                                            (fbands[i].part[j+1u] - fbands[i].part[j]);
-                                } else {
-                                    return a[2u*bIdx[i][j]];
-                                }
+                fbands[i].amplitude = [i, &a, &bIdx, &fbands](space_t space, T x) -> T {
+                    if(space == space_t::CHEBY)
+                        x = pmmath::acos(x);
+                    for(std::size_t j{0u}; j < bIdx[i].size(); ++j) {
+                        if(fbands[i].part[j]*(1.0-1e-12) <= x &&
+                        x <= fbands[i].part[j+1u]*(1.0+1e-12)) {
+                            if(a[2u*bIdx[i][j]] != a[2u*bIdx[i][j]+1u]) {
+                                return ((x-fbands[i].part[j]) * a[2u*bIdx[i][j]+1u] -
+                                        (x-fbands[i].part[j+1u]) * a[2u*bIdx[i][j]]) /
+                                        (fbands[i].part[j+1u] - fbands[i].part[j]);
+                            } else {
+                                return a[2u*bIdx[i][j]];
                             }
                         }
-                        // this should never happen
-                        return a[2u*bIdx[i][0u]];
-                    };
-                    fbands[i].weight = [i, &w, &bIdx](space_t, T x) -> T {
-                        return w[bIdx[i][0u]];
-                    };
-                }
-            } else {                    // type II filter
-                for(std::size_t i{0u}; i < fbands.size(); ++i) {
-                    fbands[i].part.push_back(T(pmmath::const_pi<T>() * f[2u*bIdx[i][0u]]));
-                    for(std::size_t j{0u}; j < bIdx[i].size(); ++j) {
-                        if(f[2u*bIdx[i][j]+1u] == 1.0) {
-                            if(f[2u*bIdx[i][j]] < 0.9999)
-                                fbands[i].part.push_back(T(pmmath::const_pi<T>() * T(0.9999)));
-                            else
-                                fbands[i].part.push_back(T(pmmath::const_pi<T>() * 
-                                                        ((f[2u*bIdx[i][j]]+1u) / 2)));
-                        } else {
-                            fbands[i].part.push_back(T(pmmath::const_pi<T>() * f[2u*bIdx[i][j]+1u]));
-                        }
                     }
-                }
-                for(std::size_t i{0u}; i < fbands.size(); ++i) {
-                    fbands[i].start = fbands[i].part[0u];
-                    fbands[i].stop  = fbands[i].part[fbands[i].part.size()-1u];
-                    fbands[i].space = space_t::FREQ;
+                    // this should never happen
+                    return a[2u*bIdx[i][0u]];
+                };
+                fbands[i].weight = [i, &w, &bIdx](space_t, T x) -> T {
+                    return w[bIdx[i][0u]];
+                };
+            }
 
-                    fbands[i].amplitude = [i, &a, &bIdx, &fbands](space_t space, T x) -> T {
+            return firpm<T>(n, fbands, eps, nmax, strategy, depth, rstrategy, prec);
+        }
+        catch (std::domain_error &err) {
+            std::cerr << "Invalid specification detected:" << std::endl;
+            std::cerr << err.what() << std::endl;
+            output.q = 2.0;
+        }
+        catch (std::runtime_error &err) {
+            std::cerr << "Runtime error detected:" << std::endl;
+            std::cerr << err.what() << std::endl;
+            output.q = 2.0;
+        }
+        catch (...) {
+            std::cerr << "Unknown exception" << std::endl;
+            output.status = status_t::STATUS_UNKNOWN_FAILURE;
+        }
+        return output;
+    }
+
+    template<typename T>
+    pmoutput_t<T> firpm(std::size_t n,
+                std::vector<band_t<T>> fbands,
+                double eps,
+                std::size_t nmax,
+                init_t strategy,
+                std::size_t depth,
+                init_t rstrategy,
+                unsigned long prec)
+    {
+        pmoutput_t<T> output;
+        output.status = status_t::STATUS_UNKNOWN_FAILURE;
+
+        try {
+        std::vector<T> h;
+        std::vector<band_t<T>> cbands;
+            std::size_t deg = n / 2;
+
+            if(n % 2 != 0) {
+                /* Type II: H(omega) = cos(omega/2) * P(omega).  Wrap each band's
+                 * amplitude and weight so exchange() sees P(omega), and clamp any
+                 * band stop at Nyquist away from pi where cos(omega/2) -> 0. */
+                for(auto& b : fbands) {
+                    T pi = pmmath::const_pi<T>();
+                    if(b.stop >= pi * T(0.9999))
+                        b.stop = b.part.back() = (b.start < pi * T(0.9999))
+                            ? pi * T(0.9999)
+                            : (b.start + pi) / 2;
+
+                    auto user_amp = b.amplitude;
+                    auto user_wt  = b.weight;
+                    b.amplitude = [user_amp](space_t space, T x) -> T {
                         T nx = x;
                         if(space == space_t::CHEBY)
                             nx = pmmath::acos(x);
-                        for(std::size_t j{0u}; j < bIdx[i].size(); ++j) {
-                            if(fbands[i].part[j]*(1.0-1e-12) <= nx && 
-                            nx <= fbands[i].part[j+1u]*(1.0+1e-12)) {
-                                if(a[2u*bIdx[i][j]] != a[2u*bIdx[i][j]+1u]) {
-                                    return ((nx-fbands[i].part[j]) * a[2u*bIdx[i][j]+1u] -
-                                            (nx-fbands[i].part[j+1u]) * a[2u*bIdx[i][j]]) /
-                                            (fbands[i].part[j+1u] - fbands[i].part[j]) / 
-                                            pmmath::cos(nx/2);
-                                }
-                            }
-                        }
+                        T a = user_amp(space, x);
                         if(space == space_t::FREQ)
-                            return a[2u*bIdx[i][0u]] / pmmath::cos(x/2);
+                            return a / pmmath::cos(nx/2);
                         else
-                            return a[2u*bIdx[i][0u]] / pmmath::sqrt((x+1)/2);
+                            return a / pmmath::sqrt((x+1)/2);
                     };
-                    fbands[i].weight = [i, &w, &bIdx](space_t space, T x) -> T {
+                    b.weight = [user_wt](space_t space, T x) -> T {
+                        T w = user_wt(space, x);
                         if(space == space_t::FREQ)
-                            return pmmath::cos(x/2) * w[bIdx[i][0u]];
+                            return pmmath::cos(x/2) * w;
                         else
-                            return pmmath::sqrt((x+1)/2) * w[bIdx[i][0u]];
+                            return pmmath::sqrt((x+1)/2) * w;
                     };
                 }
             }
@@ -1019,6 +1037,7 @@ namespace pm {
                     h[deg+1u-i] = h[deg+i] = (output.h[i-1u] + output.h[i]) / 4u;
             }
             output.h = h;
+            output.status = status_t::STATUS_SUCCESS;
         }
         catch (std::domain_error &err) {
             std::cerr << "Invalid specification detected:" << std::endl;
